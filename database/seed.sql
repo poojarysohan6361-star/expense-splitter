@@ -1,0 +1,2 @@
+-- Optional local dev seed data. Fill this in once auth/users exist and
+-- you want repeatable test data instead of manually re-signing-up each time.
