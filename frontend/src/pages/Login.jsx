@@ -1,35 +1,40 @@
 import { useState } from 'react';
 
-function Login({ onLogin }) {
-  const [form, setForm] = useState({ email: '', password: '' });
-  const [error, setError] = useState(null);
-  const [loading, setLoading] = useState(false);
+function Login() {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
 
-  const handleChange = (e) => {
-    setForm({ ...form, [e.target.name]: e.target.value });
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError(null);
-    setLoading(true);
-    try {
-      await onLogin(form);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
+  const handleSubmit = (e) => {
+    e.preventDefault(); // stops the page from reloading (default form behavior)
+    console.log({ email, password });
+    // later: send this to your backend's /api/auth/login endpoint
   };
 
   return (
-    <form onSubmit={handleSubmit}>
-      <h2>Log in</h2>
-      {error && <p style={{ color: 'red' }}>{error}</p>}
-      <input name="email" type="email" placeholder="Email" value={form.email} onChange={handleChange} required />
-      <input name="password" type="password" placeholder="Password" value={form.password} onChange={handleChange} required />
-      <button type="submit" disabled={loading}>{loading ? 'Logging in...' : 'Log in'}</button>
-    </form>
+    <div>
+      <h2>Login</h2>
+      <form onSubmit={handleSubmit}>
+        <div>
+          <label>Email:</label>
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+          />
+        </div>
+        <div>
+          <label>Password:</label>
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+          />
+        </div>
+        <button type="submit">Log In</button>
+      </form>
+    </div>
   );
 }
 

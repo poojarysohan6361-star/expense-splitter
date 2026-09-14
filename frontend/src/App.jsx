@@ -1,34 +1,19 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import Login from './pages/Login.jsx';
-import Signup from './pages/Signup.jsx';
-import { useAuth } from './hooks/useAuth.js';
-
-function Dashboard({ user, onLogout }) {
-  return (
-    <div style={{ fontFamily: 'sans-serif', padding: '2rem' }}>
-      <h1>Expense Splitter</h1>
-      <p>Logged in as {user.name} ({user.email})</p>
-      <button onClick={onLogout}>Log out</button>
-      <p>Groups, expenses and balances get built here next.</p>
-    </div>
-  );
-}
+import { BrowserRouter, Routes, Route, Link } from 'react-router-dom';
+import Login from './pages/Login';
+import Signup from './pages/Signup';
+import Dashboard from './pages/Dashboard';
 
 function App() {
-  // Single source of truth for auth state. Login/Signup receive the
-  // functions as props instead of each calling useAuth() themselves —
-  // otherwise each page would get its own independent copy of `user`.
-  const { user, login, signup, logout, isAuthenticated } = useAuth();
-
   return (
     <BrowserRouter>
+      <nav>
+        <Link to="/login">Login</Link> | <Link to="/signup">Signup</Link> | <Link to="/dashboard">Dashboard</Link>
+      </nav>
+
       <Routes>
-        <Route
-          path="/"
-          element={isAuthenticated ? <Dashboard user={user} onLogout={logout} /> : <Navigate to="/login" />}
-        />
-        <Route path="/login" element={isAuthenticated ? <Navigate to="/" /> : <Login onLogin={login} />} />
-        <Route path="/signup" element={isAuthenticated ? <Navigate to="/" /> : <Signup onSignup={signup} />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/signup" element={<Signup />} />
+        <Route path="/dashboard" element={<Dashboard />} />
       </Routes>
     </BrowserRouter>
   );
