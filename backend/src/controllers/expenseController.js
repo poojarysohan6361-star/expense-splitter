@@ -33,3 +33,37 @@ export const createExpense = async (req, res) => {
     res.status(err.status || 500).json({ error: err.message });
   }
 };
+
+export const listExpenses = async (req, res) => {
+  const groupId = parseGroupId(req.params.groupId);
+  if (groupId === null) {
+    return res.status(400).json({ error: 'Invalid group id — must be a positive integer' });
+  }
+
+  try {
+    const expenses = await expenseService.listExpensesForGroup({
+      groupId,
+      requestingUserId: req.user.id,
+    });
+    res.json(expenses);
+  } catch (err) {
+    res.status(err.status || 500).json({ error: err.message });
+  }
+};
+
+export const getBalances = async (req, res) => {
+  const groupId = parseGroupId(req.params.id || req.params.groupId);
+  if (groupId === null) {
+    return res.status(400).json({ error: 'Invalid group id — must be a positive integer' });
+  }
+
+  try {
+    const balances = await expenseService.getGroupBalances({
+      groupId,
+      requestingUserId: req.user.id,
+    });
+    res.json(balances);
+  } catch (err) {
+    res.status(err.status || 500).json({ error: err.message });
+  }
+};

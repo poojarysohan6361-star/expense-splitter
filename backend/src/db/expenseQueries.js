@@ -56,3 +56,55 @@ export const createExpenseParticipants = async (
   );
   return result.rows;
 };
+
+export const getExpensesForGroup = async (groupId) => {
+  const result = await query(
+    `SELECT e.id, e.group_id, e.paid_by, e.description, e.amount, e.split_type, e.created_at,
+            payer.name AS paid_by_name
+     FROM expenses e
+     JOIN users payer ON payer.id = e.paid_by
+     WHERE e.group_id = $1
+     ORDER BY e.created_at DESC`,
+    [groupId]
+  );
+  return result.rows;
+};
+
+export const getParticipantsForExpenses = async (expenseIds) => {
+  if (!expenseIds || expenseIds.length === 0) return [];
+  const result = await query(
+    `SELECT ep.expense_id, ep.user_id, ep.raw_value, ep.share_amount,
+            u.name, u.email
+     FROM expense_participants ep
+     JOIN users u ON u.id = ep.user_id
+     WHERE ep.expense_id = ANY($1::int[])
+     ORDER BY ep.user_id ASC`,
+    [expenseIds]
+  );
+  return result.rows;
+};
+
+export const getMemberBalancesForGroup = async (groupId) => {
+  const result = await query(
+    `SELECT
+       u.id AS user_id,
+       u.name,
+       u.email,
+       COALESCE((
+         SELECT SUM(e.amount) FROM expenses e
+         WHERE e.group_id = $1 AND e.paid_by = u.id
+       ), 0)::numeric(12,2) AS paid_total,
+       COALESCE((
+         SELECT SUM(ep.share_amount)
+         FROM expense_participants ep
+         JOIN expenses e ON e.id = ep.expense_id
+         WHERE e.group_id = $1 AND ep.user_id = u.id
+       ), 0)::numeric(12,2) AS share_total
+     FROM users u
+     JOIN group_members gm ON gm.user_id = u.id
+     WHERE gm.group_id = $1
+     ORDER BY u.id ASC`,
+    [groupId]
+  );
+  return result.rows;
+};

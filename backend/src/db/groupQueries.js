@@ -18,7 +18,9 @@ export const findGroupById = async (groupId) => {
  
 export const getGroupsForUser = async (userId) => {
   const result = await query(
-    `SELECT g.* FROM groups g
+    `SELECT g.*,
+            (SELECT COUNT(*)::int FROM group_members gm2 WHERE gm2.group_id = g.id) AS member_count
+     FROM groups g
      JOIN group_members gm ON gm.group_id = g.id
      WHERE gm.user_id = $1
      ORDER BY g.created_at DESC`,

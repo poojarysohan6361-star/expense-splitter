@@ -25,24 +25,17 @@ export default function Login() {
 
     setLoading(true);
     try {
-      const res = await authAPI.login({ email, password });
+      await authAPI.login({ email, password });
       setSuccessMessage('Logged in successfully! Redirecting...');
       setTimeout(() => {
         navigate('/dashboard');
       }, 600);
     } catch (err) {
       const msg = err.response?.data?.error || err.message || 'Login failed. Please check your credentials.';
-      // If backend is unreachable or local development, offer demo fallback
-      setErrorMessage(`${msg} (You can also click "Continue as Demo User" below)`);
+      setErrorMessage(msg);
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleDemoLogin = () => {
-    localStorage.setItem('token', 'demo-jwt-token-12345');
-    localStorage.setItem('user', JSON.stringify({ id: 1, name: 'Sohan', email: 'sohan@example.com' }));
-    navigate('/dashboard');
   };
 
   return (
@@ -108,7 +101,7 @@ export default function Login() {
                 href="#forgot"
                 onClick={(e) => {
                   e.preventDefault();
-                  alert('For demo purposes: enter your registered password or continue with demo login.');
+                  setErrorMessage('Password reset is not available yet. Use your registered password to sign in.');
                 }}
                 style={styles.forgotLink}
               >
@@ -164,21 +157,6 @@ export default function Login() {
             <ArrowRight size={18} />
           </button>
         </form>
-
-        <div style={styles.divider}>
-          <div style={styles.dividerLine} />
-          <span style={styles.dividerText}>or</span>
-          <div style={styles.dividerLine} />
-        </div>
-
-        {/* Demo login bypass */}
-        <button
-          type="button"
-          onClick={handleDemoLogin}
-          style={styles.demoBtn}
-        >
-          <span>Continue as Demo User</span>
-        </button>
 
         {/* Switch to Signup */}
         <div style={styles.footerText}>

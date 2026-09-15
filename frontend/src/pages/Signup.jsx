@@ -50,16 +50,10 @@ export default function Signup() {
       }, 600);
     } catch (err) {
       const msg = err.response?.data?.error || err.message || 'Registration failed.';
-      setErrorMessage(`${msg} (You can also click "Continue as Demo User" below)`);
+      setErrorMessage(msg);
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleDemoSignup = () => {
-    localStorage.setItem('token', 'demo-jwt-token-12345');
-    localStorage.setItem('user', JSON.stringify({ id: 1, name: name || 'Sohan', email: email || 'sohan@example.com' }));
-    navigate('/dashboard');
   };
 
   return (
@@ -199,21 +193,6 @@ export default function Signup() {
             <ArrowRight size={18} />
           </button>
         </form>
-
-        <div style={styles.divider}>
-          <div style={styles.dividerLine} />
-          <span style={styles.dividerText}>or</span>
-          <div style={styles.dividerLine} />
-        </div>
-
-        {/* Demo signup bypass */}
-        <button
-          type="button"
-          onClick={handleDemoSignup}
-          style={styles.demoBtn}
-        >
-          <span>Continue as Demo User</span>
-        </button>
 
         {/* Switch to Login */}
         <div style={styles.footerText}>
