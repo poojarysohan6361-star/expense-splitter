@@ -4,6 +4,8 @@ import dotenv from 'dotenv';
 import { pool } from './config/db.js';
 import authRoutes from './routes/authRoutes.js';
 import groupRoutes from './routes/groupRoutes.js';
+import expenseRoutes from './routes/expenseRoutes.js';
+import { requireAuth } from './middleware/authMiddleware.js';
 
 dotenv.config();
 
@@ -14,7 +16,7 @@ app.use(express.json());
 
 app.use('/api/auth', authRoutes);
 app.use('/api/groups', groupRoutes);
-const { requireAuth } = await import('./middleware/authMiddleware.js'); const { default: expenseRoutes } = await import('./routes/expenseRoutes.js'); app.use('/api/groups/:groupId/expenses', requireAuth, expenseRoutes);
+app.use('/api/groups/:groupId/expenses', requireAuth, expenseRoutes);
 
 // Health check — also confirms the DB connection is alive.
 // Hit this first after setup, before building any real routes.

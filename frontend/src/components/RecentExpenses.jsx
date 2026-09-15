@@ -1,64 +1,36 @@
 import React from 'react';
-import { Utensils, Car, ShoppingCart, Film } from 'lucide-react';
+import { Utensils } from 'lucide-react';
 
-export default function RecentExpenses({ expenses, onViewAll }) {
-  const defaultExpenses = [
-    {
-      id: 1,
-      title: 'Dinner',
-      date: 'Yesterday',
-      amount: '₹450',
-      icon: Utensils,
-    },
-    {
-      id: 2,
-      title: 'Uber',
-      date: 'Yesterday',
-      amount: '₹220',
-      icon: Car,
-    },
-    {
-      id: 3,
-      title: 'Groceries',
-      date: '2 days ago',
-      amount: '₹680',
-      icon: ShoppingCart,
-    },
-    {
-      id: 4,
-      title: 'Movie',
-      date: '3 days ago',
-      amount: '₹350',
-      icon: Film,
-    },
-  ];
-
-  const items = expenses && expenses.length > 0 ? expenses : defaultExpenses;
+export default function RecentExpenses({ expenses, onViewAll, loading, emptyMessage }) {
+  const items = expenses || [];
 
   return (
     <div style={styles.card}>
-      {/* Header */}
       <div style={styles.header}>
         <h2 style={styles.title}>Recent Expenses</h2>
-        <button
-          style={styles.viewAllBtn}
-          onClick={onViewAll}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.color = '#C084FC';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.color = '#A855F7';
-          }}
-        >
-          View All
-        </button>
+        {items.length > 0 && (
+          <button
+            style={styles.viewAllBtn}
+            onClick={onViewAll}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.color = '#C084FC';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.color = '#A855F7';
+            }}
+          >
+            View All
+          </button>
+        )}
       </div>
 
-      {/* Expense List */}
-      <div style={styles.list}>
-        {items.map((item, index) => {
-          const IconComp = item.icon || Utensils;
-          return (
+      {loading ? (
+        <div style={styles.empty}>Loading expenses...</div>
+      ) : items.length === 0 ? (
+        <div style={styles.empty}>{emptyMessage || 'No expenses yet'}</div>
+      ) : (
+        <div style={styles.list}>
+          {items.map((item, index) => (
             <div
               key={item.id || index}
               style={{
@@ -72,23 +44,23 @@ export default function RecentExpenses({ expenses, onViewAll }) {
                 e.currentTarget.style.backgroundColor = 'transparent';
               }}
             >
-              {/* Category Icon */}
               <div style={styles.iconContainer}>
-                <IconComp size={19} color="#FF6B4A" strokeWidth={2.2} />
+                <Utensils size={19} color="#FF6B4A" strokeWidth={2.2} />
               </div>
 
-              {/* Title & Date */}
               <div style={styles.details}>
                 <div style={styles.itemTitle}>{item.title || item.description}</div>
-                <div style={styles.itemDate}>{item.date || 'Recent'}</div>
+                <div style={styles.itemDate}>
+                  {item.paidByName ? `Paid by ${item.paidByName}` : 'Recent'}
+                  {item.date ? ` · ${item.date}` : ''}
+                </div>
               </div>
 
-              {/* Amount */}
               <div style={styles.amount}>{item.amount}</div>
             </div>
-          );
-        })}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -125,6 +97,12 @@ const styles = {
     cursor: 'pointer',
     transition: 'color 0.2s ease',
     padding: '4px 6px',
+  },
+  empty: {
+    color: '#717D96',
+    fontSize: '13px',
+    padding: '20px 0',
+    textAlign: 'center',
   },
   list: {
     display: 'flex',

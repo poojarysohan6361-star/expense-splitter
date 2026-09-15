@@ -1,59 +1,44 @@
 import React from 'react';
 import { ArrowDown, ArrowUp } from 'lucide-react';
 
-export default function RecentActivity({ activities }) {
-  const defaultActivities = [
-    {
-      id: 1,
-      type: 'paid',
-      title: 'You paid ₹450 to Ria',
-      time: '2 hours ago',
-      isOutgoing: true,
-    },
-    {
-      id: 2,
-      type: 'received',
-      title: 'Arun paid you ₹200',
-      time: '5 hours ago',
-      isOutgoing: false,
-    },
-  ];
-
-  const items = activities && activities.length > 0 ? activities : defaultActivities;
+export default function RecentActivity({ activities = [] }) {
+  const items = activities || [];
 
   return (
     <div style={styles.card}>
       <h2 style={styles.title}>Recent Activity</h2>
 
-      <div style={styles.list}>
-        {items.map((item, index) => {
-          const isOutgoing = item.isOutgoing !== undefined ? item.isOutgoing : item.type === 'paid';
+      {items.length === 0 ? (
+        <div style={styles.empty}>No activity yet</div>
+      ) : (
+        <div style={styles.list}>
+          {items.map((item, index) => {
+            const isOutgoing = item.isOutgoing !== undefined ? item.isOutgoing : item.type === 'paid';
 
-          return (
-            <div key={item.id || index} style={styles.activityItem}>
-              {/* Status Circle Badge */}
-              <div
-                style={{
-                  ...styles.iconCircle,
-                  backgroundColor: isOutgoing ? '#EF4444' : '#10B981',
-                }}
-              >
-                {isOutgoing ? (
-                  <ArrowDown size={17} color="#FFFFFF" strokeWidth={2.4} />
-                ) : (
-                  <ArrowUp size={17} color="#FFFFFF" strokeWidth={2.4} />
-                )}
-              </div>
+            return (
+              <div key={item.id || index} style={styles.activityItem}>
+                <div
+                  style={{
+                    ...styles.iconCircle,
+                    backgroundColor: isOutgoing ? '#EF4444' : '#10B981',
+                  }}
+                >
+                  {isOutgoing ? (
+                    <ArrowDown size={17} color="#FFFFFF" strokeWidth={2.4} />
+                  ) : (
+                    <ArrowUp size={17} color="#FFFFFF" strokeWidth={2.4} />
+                  )}
+                </div>
 
-              {/* Text Info */}
-              <div style={styles.info}>
-                <div style={styles.activityTitle}>{item.title}</div>
-                <div style={styles.activityTime}>{item.time || item.createdAt}</div>
+                <div style={styles.info}>
+                  <div style={styles.activityTitle}>{item.title}</div>
+                  <div style={styles.activityTime}>{item.time || item.createdAt}</div>
+                </div>
               </div>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
@@ -74,6 +59,12 @@ const styles = {
     letterSpacing: '-0.2px',
     marginBottom: '16px',
     marginTop: 0,
+  },
+  empty: {
+    color: '#717D96',
+    fontSize: '13px',
+    padding: '12px 0',
+    textAlign: 'center',
   },
   list: {
     display: 'flex',

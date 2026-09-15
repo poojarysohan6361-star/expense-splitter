@@ -1,20 +1,139 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, Check } from 'lucide-react';
+import { groupsAPI } from '../api/api';
 
 export default function AddExpenseModal({
   isOpen,
   onClose,
   groups = [],
+  selectedGroupId,
+  currentUserId,
   onAddExpenseSuccess,
 }) {
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState('');
-  const [groupId, setGroupId] = useState(groups[0]?.id || '1');
+  const [groupId, setGroupId] = useState(selectedGroupId || groups[0]?.id || '');
+  const [paidBy, setPaidBy] = useState(currentUserId || '');
   const [splitType, setSplitType] = useState('equal');
+  const [members, setMembers] = useState([]);
+  const [selectedUserIds, setSelectedUserIds] = useState(new Set());
+  const [rawValues, setRawValues] = useState({});
   const [loading, setLoading] = useState(false);
+  const [loadingMembers, setLoadingMembers] = useState(false);
   const [error, setError] = useState('');
 
+  // Sync selected group and fetch members when modal opens or group changes
+  useEffect(() => {
+    if (!isOpen) return;
+    const targetGroupId = selectedGroupId || groups[0]?.id || '';
+    setGroupId(targetGroupId);
+  }, [isOpen, selectedGroupId, groups]);
+
+  useEffect(() => {
+    if (!isOpen || !groupId) return;
+
+    let isMounted = true;
+    setLoadingMembers(true);
+    groupsAPI
+      .getDetails(groupId)
+      .then((details) => {
+        if (!isMounted) return;
+        const groupMembers = details.members || [];
+        setMembers(groupMembers);
+
+        // Default payer to current user if a member, otherwise first member
+        const hasCurrentUser = groupMembers.some((m) => m.id === currentUserId);
+        setPaidBy(hasCurrentUser ? currentUserId : groupMembers[0]?.id || '');
+
+        // Default all members as participants
+        setSelectedUserIds(new Set(groupMembers.map((m) => m.id)));
+
+        // Default shares to 1
+        const initialRaw = {};
+        groupMembers.forEach((m) => {
+          initialRaw[m.id] = '';
+        });
+        setRawValues(initialRaw);
+      })
+      .catch((err) => {
+        if (!isMounted) return;
+        console.error('Failed to fetch group members for expense modal:', err);
+      })
+      .finally(() => {
+        if (isMounted) setLoadingMembers(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [isOpen, groupId, currentUserId]);
+
   if (!isOpen) return null;
+
+  const totalAmountNum = parseFloat(amount) || 0;
+  const participantCount = selectedUserIds.size;
+
+  const toggleParticipant = (userId) => {
+    const next = new Set(selectedUserIds);
+    if (next.has(userId)) {
+      next.delete(userId);
+    } else {
+      next.add(userId);
+    }
+    setSelectedUserIds(next);
+  };
+
+  const handleRawValueChange = (userId, val) => {
+    setRawValues((prev) => ({
+      ...prev,
+      [userId]: val,
+    }));
+  };
+
+  // Helper calculations for validation and preview
+  let allocationStatus = null;
+  if (splitType === 'equal' && participantCount > 0 && totalAmountNum > 0) {
+    const equalShare = (totalAmountNum / participantCount).toFixed(2);
+    allocationStatus = {
+      isValid: true,
+      text: `₹${equalShare} per person (${participantCount} selected)`,
+    };
+  } else if (splitType === 'exact') {
+    const exactSum = Array.from(selectedUserIds).reduce((acc, uid) => {
+      const v = parseFloat(rawValues[uid]) || 0;
+      return acc + v;
+    }, 0);
+    const diff = Math.round((totalAmountNum - exactSum) * 100) / 100;
+    const isMatched = Math.abs(diff) < 0.001;
+    allocationStatus = {
+      isValid: isMatched,
+      text: isMatched
+        ? `Allocated: ₹${exactSum.toFixed(2)} (Matches total)`
+        : `Allocated: ₹${exactSum.toFixed(2)} / ₹${totalAmountNum.toFixed(2)} (${diff > 0 ? `₹${diff.toFixed(2)} remaining` : `₹${Math.abs(diff).toFixed(2)} over`})`,
+    };
+  } else if (splitType === 'percentage') {
+    const pctSum = Array.from(selectedUserIds).reduce((acc, uid) => {
+      const v = parseFloat(rawValues[uid]) || 0;
+      return acc + v;
+    }, 0);
+    const diff = Math.round((100 - pctSum) * 100) / 100;
+    const isMatched = Math.abs(diff) < 0.001;
+    allocationStatus = {
+      isValid: isMatched,
+      text: isMatched
+        ? `Total: 100% (Matches 100%)`
+        : `Total: ${pctSum}% / 100% (${diff > 0 ? `${diff}% remaining` : `${Math.abs(diff)}% over`})`,
+    };
+  } else if (splitType === 'shares') {
+    const totalShares = Array.from(selectedUserIds).reduce((acc, uid) => {
+      const v = parseFloat(rawValues[uid]) || 1;
+      return acc + (v > 0 ? v : 1);
+    }, 0);
+    allocationStatus = {
+      isValid: totalShares > 0,
+      text: `Total weight: ${totalShares} share${totalShares === 1 ? '' : 's'}`,
+    };
+  }
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -25,8 +144,83 @@ export default function AddExpenseModal({
       return;
     }
     if (!amount || Number(amount) <= 0) {
-      setError('Please enter a valid amount');
+      setError('Please enter a valid positive amount');
       return;
+    }
+    if (!groupId) {
+      setError('Please select a group');
+      return;
+    }
+    if (!paidBy) {
+      setError('Please select who paid the expense');
+      return;
+    }
+    if (selectedUserIds.size === 0) {
+      setError('Please select at least one participant');
+      return;
+    }
+
+    const participants = [];
+    const amountCents = Math.round(Number(amount) * 100);
+
+    if (splitType === 'equal') {
+      selectedUserIds.forEach((uid) => {
+        participants.push({ userId: Number(uid) });
+      });
+    } else if (splitType === 'exact') {
+      let sumCents = 0;
+      for (const uid of selectedUserIds) {
+        const val = rawValues[uid];
+        const num = parseFloat(val);
+        if (Number.isNaN(num) || num <= 0) {
+          setError('Each participant must have an exact amount greater than ₹0');
+          return;
+        }
+        const cents = Math.round(num * 100);
+        sumCents += cents;
+        participants.push({
+          userId: Number(uid),
+          rawValue: num,
+        });
+      }
+      if (sumCents !== amountCents) {
+        setError(
+          `Exact amounts sum to ₹${(sumCents / 100).toFixed(2)}, which does not match total ₹${(amountCents / 100).toFixed(2)}`
+        );
+        return;
+      }
+    } else if (splitType === 'percentage') {
+      let sumPct = 0;
+      for (const uid of selectedUserIds) {
+        const val = rawValues[uid];
+        const num = parseFloat(val);
+        if (Number.isNaN(num) || num <= 0 || num > 100) {
+          setError('Each participant must have a percentage between 0 and 100');
+          return;
+        }
+        sumPct += num;
+        participants.push({
+          userId: Number(uid),
+          rawValue: num,
+        });
+      }
+      if (Math.abs(sumPct - 100) > 0.001) {
+        setError(`Percentages must sum to exactly 100% (currently ${sumPct}%)`);
+        return;
+      }
+    } else if (splitType === 'shares') {
+      for (const uid of selectedUserIds) {
+        const val = rawValues[uid];
+        const num = val === '' || val === undefined ? 1 : parseFloat(val);
+        if (Number.isNaN(num) || num <= 0) {
+          setError('Share weight must be a positive number');
+          return;
+        }
+        participants.push({
+          userId: Number(uid),
+          rawValue: num,
+        });
+      }
     }
 
     setLoading(true);
@@ -36,16 +230,16 @@ export default function AddExpenseModal({
           description: description.trim(),
           amount: parseFloat(amount).toFixed(2),
           groupId: Number(groupId),
+          paidBy: Number(paidBy),
           splitType,
-          paidBy: 1, // Default to Sohan
-          createdAt: new Date().toISOString(),
+          participants,
         });
       }
       onClose();
       setDescription('');
       setAmount('');
     } catch (err) {
-      setError(err.message || 'Failed to save expense');
+      setError(err.response?.data?.error || err.message || 'Failed to save expense');
     } finally {
       setLoading(false);
     }
@@ -57,7 +251,7 @@ export default function AddExpenseModal({
         {/* Modal Header */}
         <div style={styles.header}>
           <h2 style={styles.modalTitle}>Add New Expense</h2>
-          <button style={styles.closeBtn} onClick={onClose}>
+          <button type="button" style={styles.closeBtn} onClick={onClose}>
             <X size={18} color="#8E9CAE" />
           </button>
         </div>
@@ -83,7 +277,7 @@ export default function AddExpenseModal({
               <label style={styles.label}>Amount (₹)</label>
               <input
                 type="number"
-                step="any"
+                step="0.01"
                 min="0.01"
                 placeholder="450"
                 value={amount}
@@ -99,6 +293,7 @@ export default function AddExpenseModal({
                 value={groupId}
                 onChange={(e) => setGroupId(e.target.value)}
                 style={styles.select}
+                disabled={groups.length === 0}
               >
                 {groups.length > 0 ? (
                   groups.map((g) => (
@@ -107,14 +302,34 @@ export default function AddExpenseModal({
                     </option>
                   ))
                 ) : (
-                  <>
-                    <option value="1" style={styles.option}>Goa Trip</option>
-                    <option value="2" style={styles.option}>Roommates</option>
-                    <option value="3" style={styles.option}>College Project</option>
-                  </>
+                  <option value="" style={styles.option}>
+                    No groups available
+                  </option>
                 )}
               </select>
             </div>
+          </div>
+
+          <div style={styles.fieldGroup}>
+            <label style={styles.label}>Paid by</label>
+            <select
+              value={paidBy}
+              onChange={(e) => setPaidBy(e.target.value)}
+              style={styles.select}
+              disabled={members.length === 0}
+            >
+              {members.length > 0 ? (
+                members.map((m) => (
+                  <option key={m.id} value={m.id} style={styles.option}>
+                    {m.name} {m.id === currentUserId ? '(You)' : ''}
+                  </option>
+                ))
+              ) : (
+                <option value="" style={styles.option}>
+                  {loadingMembers ? 'Loading members...' : 'No members'}
+                </option>
+              )}
+            </select>
           </div>
 
           <div style={styles.fieldGroup}>
@@ -136,14 +351,99 @@ export default function AddExpenseModal({
             </div>
           </div>
 
+          {/* Participants & Split Breakdown Section */}
+          <div style={styles.participantsSection}>
+            <div style={styles.participantsHeader}>
+              <span style={styles.participantsTitle}>Participants</span>
+              {allocationStatus && (
+                <span
+                  style={{
+                    ...styles.statusBadge,
+                    color: allocationStatus.isValid ? '#10B981' : '#F43F5E',
+                    backgroundColor: allocationStatus.isValid
+                      ? 'rgba(16, 185, 129, 0.1)'
+                      : 'rgba(244, 63, 94, 0.1)',
+                  }}
+                >
+                  {allocationStatus.text}
+                </span>
+              )}
+            </div>
+
+            {loadingMembers ? (
+              <div style={styles.emptyNote}>Loading members...</div>
+            ) : members.length === 0 ? (
+              <div style={styles.emptyNote}>No members found in this group</div>
+            ) : (
+              <div style={styles.memberList}>
+                {members.map((m) => {
+                  const isChecked = selectedUserIds.has(m.id);
+                  return (
+                    <div
+                      key={m.id}
+                      style={{
+                        ...styles.memberRow,
+                        opacity: isChecked ? 1 : 0.45,
+                      }}
+                    >
+                      <label style={styles.checkboxLabel}>
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={() => toggleParticipant(m.id)}
+                          style={styles.checkbox}
+                        />
+                        <span style={styles.memberName}>
+                          {m.name} {m.id === currentUserId ? '(You)' : ''}
+                        </span>
+                      </label>
+
+                      {isChecked && splitType !== 'equal' && (
+                        <div style={styles.splitInputContainer}>
+                          <input
+                            type="number"
+                            step={splitType === 'exact' ? '0.01' : '1'}
+                            min="0"
+                            placeholder={
+                              splitType === 'exact'
+                                ? '₹ Amount'
+                                : splitType === 'percentage'
+                                ? '%'
+                                : 'Weight (e.g. 1)'
+                            }
+                            value={rawValues[m.id] !== undefined ? rawValues[m.id] : ''}
+                            onChange={(e) => handleRawValueChange(m.id, e.target.value)}
+                            style={styles.splitInput}
+                            required
+                          />
+                          <span style={styles.splitInputUnit}>
+                            {splitType === 'exact' ? '₹' : splitType === 'percentage' ? '%' : 'shares'}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
           {/* Action Buttons */}
           <div style={styles.actions}>
             <button type="button" style={styles.cancelBtn} onClick={onClose}>
               Cancel
             </button>
-            <button type="submit" style={styles.submitBtn} disabled={loading}>
+            <button
+              type="submit"
+              style={{
+                ...styles.submitBtn,
+                opacity: loading ? 0.7 : 1,
+                cursor: loading ? 'not-allowed' : 'pointer',
+              }}
+              disabled={loading}
+            >
               {loading ? (
-                'Adding...'
+                'Saving...'
               ) : (
                 <>
                   <Check size={16} strokeWidth={2.5} />
@@ -175,8 +475,10 @@ const styles = {
     border: '1px solid rgba(168, 85, 247, 0.4)',
     borderRadius: '18px',
     padding: '28px',
-    width: '460px',
-    maxWidth: '92vw',
+    width: '500px',
+    maxWidth: '94vw',
+    maxHeight: '90vh',
+    overflowY: 'auto',
     boxShadow: '0 20px 50px rgba(0, 0, 0, 0.6), 0 0 30px rgba(124, 58, 237, 0.2)',
   },
   header: {
@@ -277,6 +579,94 @@ const styles = {
     color: '#FFFFFF',
     fontWeight: '600',
     boxShadow: '0 2px 8px rgba(124, 58, 237, 0.4)',
+  },
+  participantsSection: {
+    backgroundColor: '#151B32',
+    border: '1px solid rgba(255, 255, 255, 0.06)',
+    borderRadius: '12px',
+    padding: '14px',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '10px',
+  },
+  participantsHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: '4px',
+  },
+  participantsTitle: {
+    color: '#8E9CAE',
+    fontSize: '12.5px',
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: '0.4px',
+  },
+  statusBadge: {
+    fontSize: '11.5px',
+    fontWeight: '600',
+    padding: '3px 8px',
+    borderRadius: '6px',
+  },
+  emptyNote: {
+    color: '#717D96',
+    fontSize: '12.5px',
+    textAlign: 'center',
+    padding: '10px 0',
+  },
+  memberList: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '8px',
+    maxHeight: '180px',
+    overflowY: 'auto',
+  },
+  memberRow: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: '6px 4px',
+    borderRadius: '8px',
+    gap: '10px',
+  },
+  checkboxLabel: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '10px',
+    cursor: 'pointer',
+    flex: 1,
+    color: '#FFFFFF',
+    fontSize: '13.5px',
+  },
+  checkbox: {
+    accentColor: '#7C3AED',
+    width: '16px',
+    height: '16px',
+    cursor: 'pointer',
+  },
+  memberName: {
+    fontWeight: '500',
+  },
+  splitInputContainer: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px',
+  },
+  splitInput: {
+    width: '85px',
+    backgroundColor: '#0F1528',
+    border: '1px solid rgba(255, 255, 255, 0.12)',
+    borderRadius: '8px',
+    padding: '6px 8px',
+    color: '#FFFFFF',
+    fontSize: '13px',
+    outline: 'none',
+    textAlign: 'right',
+  },
+  splitInputUnit: {
+    color: '#8E9CAE',
+    fontSize: '12px',
+    minWidth: '24px',
   },
   actions: {
     display: 'flex',

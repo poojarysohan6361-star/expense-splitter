@@ -7,9 +7,3 @@ router.get('/', listExpenses);
 router.post('/', createExpense);
 
 export default router;
-
-const router = Router({ mergeParams: true });
-
-router.post('/', createExpense);
-
-export default router;

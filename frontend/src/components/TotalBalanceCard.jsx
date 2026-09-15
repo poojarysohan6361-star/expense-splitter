@@ -11,45 +11,11 @@ export default function TotalBalanceCard({
 }) {
   return (
     <div style={styles.cardContainer}>
-      {/* Top Row: Balance Header & Action Buttons */}
+      {/* Top Row: Balance Header */}
       <div style={styles.topRow}>
         <div style={styles.balanceInfo}>
           <div style={styles.balanceLabel}>TOTAL BALANCE</div>
           <div style={styles.balanceValue}>{totalBalance}</div>
-        </div>
-
-        <div style={styles.actionsGroup}>
-          <button
-            style={styles.actionBtn}
-            onClick={onWalletClick}
-            title="Wallet"
-            onMouseEnter={(e) => {
-              e.currentTarget.style.borderColor = 'rgba(168, 85, 247, 0.4)';
-              e.currentTarget.style.backgroundColor = '#1C2340';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.08)';
-              e.currentTarget.style.backgroundColor = '#151B32';
-            }}
-          >
-            <Wallet size={20} color="#9D4EDD" strokeWidth={2} />
-          </button>
-
-          <button
-            style={styles.actionBtn}
-            onClick={onReceiptClick}
-            title="Receipts"
-            onMouseEnter={(e) => {
-              e.currentTarget.style.borderColor = 'rgba(245, 158, 11, 0.4)';
-              e.currentTarget.style.backgroundColor = '#1C2340';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.08)';
-              e.currentTarget.style.backgroundColor = '#151B32';
-            }}
-          >
-            <ReceiptText size={20} color="#F59E0B" strokeWidth={2} />
-          </button>
         </div>
       </div>
 
